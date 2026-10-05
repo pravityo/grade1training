@@ -44,23 +44,31 @@
   const wordOf = x => x.w;
   const monsterIdx = n => (n * 7 + 3) % Monsters.LIST.length;
 
-  /* Buttons that say the word, its meaning and a sentence, like a bee pronouncer. */
-  function pronouncer(item, big, beforeListen) {
-    const row = h('div', { class: 'pron' });
-    const b = (label, fn, cls) => row.append(h('button', { class: 'btn alt ' + (cls || ''), onclick: () => { if (beforeListen) beforeListen(); fn(); } }, label));
+  /* The same helper everywhere: hear the word, its meaning and a sentence, like a bee pronouncer. Every word has all three.
+     mode 'full' (meeting a word): meaning and sentence are always written out, word included.
+     mode 'ask' (spelling it): tapping Meaning or Sentence says it and shows it with the word hidden. With sound off they are shown at once. */
+  function pronouncer(item, big, mode) {
+    mode = mode || 'ask'; const full = mode === 'full', show = full || !Speech.on();
+    const defEl = h('p', { class: 'pr-line' }), sentEl = h('p', { class: 'pr-line sentence' });
+    const txt = (x) => full ? x : blanked(x, item.w);
+    const fill = (el, label, text) => { el.replaceChildren(h('b', {}, label + ': '), txt(text)); };
+    const showDef = () => { if (item.def) fill(defEl, 'Meaning', item.def); }, showSent = () => { if (item.sent) fill(sentEl, 'Sentence', item.sent); };
+    if (show) { showDef(); showSent(); }
+    const row = h('div', { class: 'pron' }), b = (label, fn, cls) => row.append(h('button', { class: 'btn alt ' + (cls || ''), onclick: fn }, label));
     b('🔊 Word', () => Speech.say(item.w, 0.8), big ? 'big' : '');
-    if (item.def) b('📖 Meaning', () => Speech.say('Meaning: ' + item.def + '.', 0.9));
-    if (item.sent) b('💬 Sentence', () => Speech.say(item.sent, 0.9));
-    b('🔁 Again', () => Speech.say(item.w, 0.7));
-    return row;
+    if (item.def) b('📖 Meaning', () => { showDef(); Speech.say('Meaning: ' + item.def + '.', 0.9); });
+    if (item.sent) b('💬 Sentence', () => { showSent(); Speech.say(item.sent, 0.9); });
+    b('🐢 Slowly', () => Speech.say(item.w, 0.55));
+    const out = h('div', { class: 'pr-text' }, defEl, sentEl);
+    const box = h('div', { class: 'pronbox' }, row, out);
+    if (!Speech.on()) box.append(h('p', { class: 'muted small' }, Speech.ok ? '🔇 Sound is off, so a grown-up can read the word aloud.' : '🔇 This device cannot speak, so a grown-up can read the word aloud.'));
+    return box;
   }
-  /* Without sound, a grown-up can read the word: the screen shows the meaning and a sentence with a gap, and a hidden word to peek at. */
+  /* Without sound, a grown-up can read the word: a hidden word to peek at for a moment. */
   function silentHelp(item) {
     if (Speech.on()) return '';
     const peek = h('span', { class: 'peek' }, '••••');
-    return h('div', { class: 'silent' }, h('p', {}, Speech.ok ? '🔇 Sound is off. ' : '🔇 This device cannot speak. ', 'A grown-up can read the word aloud.'),
-      item.def ? h('p', {}, h('b', {}, 'Meaning: '), item.def) : '', item.sent ? h('p', {}, h('b', {}, 'Sentence: '), blanked(item.sent, item.w)) : '',
-      h('button', { class: 'linkbtn', onclick: () => { peek.textContent = item.w; setTimeout(() => { peek.textContent = '••••'; }, 3000); } }, 'Grown-up: show the word for 3 seconds'), peek);
+    return h('div', { class: 'silent' }, h('button', { class: 'linkbtn', onclick: () => { peek.textContent = item.w; setTimeout(() => { peek.textContent = '••••'; }, 3000); } }, 'Grown-up: show the word for 3 seconds'), peek);
   }
 
   /* Letter tiles: tap to build the word. A couple of extra letters make it a puzzle. */
@@ -144,7 +152,7 @@
     const nextMilestone = [25, 50, 100, 250, 500, 1000, c.total].filter(n => n <= c.total).sort((a, b) => a - b).find(n => n > c.mastered);
     const encouragement = h('section', { class: 'bee-daily' }, h('h2', {}, doneToday ? 'You practised today!' : 'A little practice every day'), h('p', {}, nextMilestone ? `${c.mastered} word${c.mastered === 1 ? '' : 's'} you know. Next goal: ${nextMilestone}!` : 'You reached every word goal. Nice work!'));
     const lifetime = h('details', { class: 'fold' }, h('summary', {}, 'Your progress and bee date'), progress);
-    wrap.querySelector('h1').after(h('p', { class: 'bee-garden' }, '🐝 Word Garden · Story Forest', h('br'), h('span', {}, 'Your bee guide helps you listen and spell.')), drill, encouragement);
+    wrap.querySelector('h1').after(drill, encouragement);
     wrap.append(lifetime);
     K.app(wrap);
   }
@@ -165,7 +173,7 @@
       const filtered = items.filter(x => (!query || x.w.includes(query)) && (!+difficulty.value || x.tier === +difficulty.value) && (state.value === 'all' || Bee.status(B.words[x.w]) === state.value));
       const shown = filtered.slice(page * size, (page + 1) * size);
       info.textContent = filtered.length ? `Words ${page * size + 1}–${page * size + shown.length} of ${filtered.length}` : 'No words match. Try another search or level.';
-      grid.replaceChildren(...shown.map(x => h('div', { class: 'bee-wchip ' + Bee.status(B.words[x.w]) }, h('b', {}, x.w), h('small', {}, Bee.status(B.words[x.w])), h('button', { class: 'btn alt small', 'aria-label': 'Hear ' + x.w, onclick: () => Speech.say(x.w, 0.8) }, '🔊 Hear'), h('a', { href: '#/bee/group/' + x.gid }, 'Group'))));
+      grid.replaceChildren(...shown.map(x => h('div', { class: 'bee-wchip ' + Bee.status(B.words[x.w]) }, h('b', {}, x.w), h('small', {}, Bee.status(B.words[x.w])), h('button', { class: 'btn alt small', 'aria-label': 'Hear ' + x.w, onclick: () => Speech.say(x.w, 0.8) }, '🔊 Hear'), h('button', { class: 'btn alt small', 'aria-label': 'Meet ' + x.w, onclick: () => runSession({ kind: 'group', title: 'Meet a word', words: [x], fresh: [x], hearts: 0 }) }, '📖 Meet'), h('a', { href: '#/bee/group/' + x.gid }, 'Group'))));
       nav.replaceChildren(h('button', { class: 'btn alt', disabled: page === 0 ? '' : null, onclick: () => { if (page > 0) { page--; draw(); info.focus(); info.scrollIntoView({ block: 'start' }); } } }, 'Previous words'), h('button', { class: 'btn', disabled: (page + 1) * size >= filtered.length ? '' : null, onclick: () => { if ((page + 1) * size < filtered.length) { page++; draw(); info.focus(); info.scrollIntoView({ block: 'start' }); } } }, 'More words'));
       nav.querySelectorAll('button').forEach((button, i) => { button.disabled = i === 0 ? page === 0 : (page + 1) * size >= filtered.length; });
     };
@@ -219,27 +227,24 @@
     const st = { hearts: cfg.hearts, maxHearts: cfg.hearts, combo: 0, best: 0, xp: 0, i: 0, outcomes: [], queue: cfg.words.slice(), retried: new Set(), out: false };
     const show = node => { Speech.stop(); K.app(h('div', { class: 'bee' }, node)); };
 
-    /* meet the new words */
+    /* meet the new words: the word, its letters, meaning and sentence are all shown, then a try from memory */
     function study(k) {
       if (k >= cfg.fresh.length) return battle();
-      const x = cfg.fresh[k], fully = h('div', { class: 'card studycard' });
-      const spelling = h('div', { class: 'bee-study-spelling' });
-      let visible = false;
-      const hide = () => { visible = false; spelling.replaceChildren(); reveal.textContent = '👀 Show the spelling'; reveal.setAttribute('aria-expanded', 'false'); };
-      const reveal = h('button', { class: 'btn alt', 'aria-expanded': 'false', onclick: () => {
-        if (visible) return hide();
-        visible = true; reveal.textContent = '🙈 Hide the spelling'; reveal.setAttribute('aria-expanded', 'true');
-        spelling.replaceChildren(h('div', { class: 'sw' }, letters(x.w, 'huge')),
-          h('button', { class: 'btn alt', onclick: () => Speech.spell(x.w) }, '🔤 Say the letters'),
-          h('p', { class: 'key' }, `${x.emoji} ${x.tip}`));
-      } }, '👀 Show the spelling');
-      fully.append(h('div', { class: 'muted small' }, `New word ${k + 1} of ${cfg.fresh.length} `, tierTag(x)),
-        h('h2', {}, 'Listen first'), h('p', {}, 'Hear the word. Try to spell it before you look.'), pronouncer(x, true, hide), silentHelp(x),
-        x.def ? h('p', {}, h('b', {}, 'Meaning: '), blanked(x.def, x.w)) : '',
-        x.sent ? h('p', { class: 'sentence' }, h('b', {}, 'Sentence: '), blanked(x.sent, x.w)) : '', reveal, spelling,
-        h('p', { class: 'muted' }, 'Ready? Keep the spelling hidden and give it a try.'),
-        h('button', { class: 'btn', onclick: () => { fully.replaceChildren(h('h3', {}, 'Listen, then spell.'), h('p', { class: 'muted' }, 'The spelling is hidden. Spell the word you heard.'), pronouncer(x), silentHelp(x), memory(x, k)); } }, 'Try spelling it'));
-      show(fully); Speech.say(x.w, 0.8);
+      const x = cfg.fresh[k], card = h('div', { class: 'card studycard' });
+      card.append(h('div', { class: 'muted small' }, `New word ${k + 1} of ${cfg.fresh.length} `, tierTag(x)),
+        h('h2', {}, 'Meet your new word'), h('div', { class: 'sw' }, letters(x.w, 'huge')),
+        h('div', { class: 'pron' }, h('button', { class: 'btn alt', onclick: () => Speech.spell(x.w) }, '🔤 Say the letters')),
+        pronouncer(x, true, 'full'), h('p', { class: 'key' }, `${x.emoji} ${x.tip}`),
+        h('p', { class: 'muted' }, 'Look at the letters and say them. When you are ready, spell it from memory.'),
+        h('button', { class: 'btn', onclick: () => remember(x, k) }, 'I am ready, try it ➜'),
+        k > 0 ? h('button', { class: 'btn alt', onclick: () => study(k - 1) }, '◀ Back') : '');
+      show(card); Speech.say(x.w, 0.8);
+    }
+    function remember(x, k) {
+      show(h('div', { class: 'card studycard' }, h('div', { class: 'muted small' }, `New word ${k + 1} of ${cfg.fresh.length} `, tierTag(x)),
+        h('h3', {}, 'Now spell it from memory'), pronouncer(x, false, 'ask'), silentHelp(x), memory(x, k),
+        h('button', { class: 'btn alt', onclick: () => study(k) }, '👀 Look at the word again')));
+      Speech.say(x.w, 0.8);
     }
     // Oral practice is self-checked; no microphone or speech recognition is used.
     function oralInput(x, onCheck) {
@@ -305,7 +310,7 @@
       const input = () => mode === 'type' ? typeInput(x, submit) : tilesInput(x, submit);
       const sayMode = () => oralInput(x, ok => finishWord(ok ? 'first' : 'miss'));
       inputBox.append(mode === 'say' ? sayMode() : input());
-      sect.append(arena(), h('div', { class: 'card wordcard' }, h('div', { class: 'muted small' }, `Word ${Math.min(st.i + 1, st.queue.length)} of ${st.queue.length}${cfg.kind === 'mock' ? ' · ' + Bee.TIERS[x.tier].emoji + ' ' + Bee.TIERS[x.tier].name + ' round' : ''}`), h('h2', {}, cfg.kind === 'mock' ? '🐝 Spell the word' : 'Spell the word'), tierTag(x), pronouncer(x, true), silentHelp(x), modeSwitch(), inputBox, fb));
+      sect.append(arena(), h('div', { class: 'card wordcard' }, h('div', { class: 'muted small' }, `Word ${Math.min(st.i + 1, st.queue.length)} of ${st.queue.length}${cfg.kind === 'mock' ? ' · ' + Bee.TIERS[x.tier].emoji + ' ' + Bee.TIERS[x.tier].name + ' round' : ''}`), h('h2', {}, cfg.kind === 'mock' ? '🐝 Spell the word' : 'Spell the word'), tierTag(x), pronouncer(x, true, 'ask'), silentHelp(x), modeSwitch(), inputBox, fb));
       show(sect); Speech.say(x.w, 0.8);
     }
     const modeSwitch = () => h('div', { class: 'bee-modes small' }, [['tiles', '🔤'], ['type', '⌨️'], ['say', '🗣️']].map(([k, e]) => h('button', { class: 'bee-mode' + (B.mode === k ? ' on' : ''), 'aria-pressed': String(B.mode === k), 'aria-label': k === 'say' ? 'Spell aloud' : k === 'type' ? 'Type it' : 'Letter tiles', onclick: () => { B.mode = k; save(); word(); } }, e)));
@@ -340,7 +345,7 @@
           h('div', { class: 'ans' }, h('a', { class: 'btn', href: '#/bee' }, '🐝 Back to spelling'), misses ? h('button', { class: 'btn alt', onclick: () => runSession({ kind: 'hard', title: 'Missed words', words: Bee.shuffle([...new Set(outs.filter(o => o.outcome === 'miss').map(o => o.x))]), fresh: [], hearts: 0 }) }, 'Try the tricky words') : '', cfg.kind === 'mock' ? h('a', { class: 'btn alt', href: '#/bee/mock' }, 'Try the practice bee again') : h('button', { class: 'btn', onclick: () => { const used = new Set(st.queue.map(x => x.w)); const remaining = pl().filter(x => !used.has(x.w)); const pool = remaining.length ? remaining : pl(); let extra = Bee.buildSession(B, pool, today(), { size: 5, newMax: 5 }); if (!extra.order.length) extra = Bee.buildSession(B, pl(), today(), { size: 5, newMax: 5 }); runSession({ kind: 'drill', title: 'Five more words', words: extra.order, fresh: extra.fresh, hearts: 5 }); } }, 'Try 5 more words')))));
     }
     if (!total) return kit().go('#/bee');
-    if (cfg.fresh.length) { const intro = h('section', { class: 'card' }, h('h2', {}, `✏️ ${cfg.title}`), h('p', {}, `Spell with ${monName}! First, meet ${cfg.fresh.length} new word${cfg.fresh.length === 1 ? '' : 's'}. Then try them yourself.`), h('button', { class: 'btn', onclick: () => study(0) }, 'Meet the new words ➜')); show(intro); } else battle();
+    if (cfg.fresh.length) study(0); else battle();
   }
 
   /* ---------- Grown-ups: settings, own word list, and how it is going ---------- */

@@ -26,3 +26,7 @@ state.tiers = [1, 2, 3];
 const session = Bee.buildSession(state, pool, '2026-09-30');
 assert(session.order.length > 0 && session.order.every(x => pool.includes(x)));
 console.log('Combined Bee resource tests OK (' + pool.length + ' words)');
+// every word, built in or imported, has a meaning and a sentence that contains the word
+const missingText = all.filter(x => !x.def || !x.sent || !new RegExp(x.w.replace(/[-.]/g, '\\$&'), 'i').test(x.sent));
+assert.deepStrictEqual(missingText.map(x => x.w), [], 'every word needs a meaning and a sentence using it');
+console.log('All words have meanings and sentences');
