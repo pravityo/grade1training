@@ -556,3 +556,10 @@ body.learning{background-image:none}body.learning::after{display:none}
 .pr-text{margin:6px 0}
 .pr-line{margin:4px 0;font-size:1.05rem}
 .pr-line:empty{display:none}
+
+/* header sign-in chip */
+.acct{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:99px;background:rgba(255,255,255,.15);font-size:.9rem;font-weight:700;white-space:nowrap;max-width:46vw;overflow:hidden;text-overflow:ellipsis;margin-left:auto}
+.acct-dot{width:10px;height:10px;border-radius:50%;background:#9aa;flex:none;border:2px solid #fff}
+.acct.ok .acct-dot{background:#3ddc84}.acct.busy .acct-dot{background:#ffc83d}.acct.bad .acct-dot{background:#ff5a5a}.acct.out .acct-dot{background:transparent}
+.acct.out{background:rgba(255,255,255,.08);border:2px dashed rgba(255,255,255,.55)}
+@media(max-width:480px){.brand{flex-basis:auto;flex:1 1 60%}.acct{flex:none}}

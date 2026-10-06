@@ -285,6 +285,28 @@
       h('p', { class: 'goal-gear' }, nxt ? `🛡️ New armour after ${nxt} more study day${nxt > 1 ? 's' : ''}. (${KnightWear.earned(S.days.length)} of ${KnightWear.ACC.length} collected)` : '🛡️ Your knight has every piece of armour!'));
     return { card };
   }
+  /* The sign-in chip in the header: who is signed in, and whether their progress is being saved to the cloud. */
+  function drawAcct() {
+    const el = document.getElementById('acct'); if (!el || !window.Cloud) return;
+    const c = Cloud.status(); let cls, label, tip;
+    if (c.signedIn) {
+      const nm = (c.name || c.email.split('@')[0]).split(' ')[0];
+      cls = c.state === 'synced' ? 'ok' : c.state === 'syncing' || c.state === 'loading' ? 'busy' : 'bad';
+      label = nm; tip = `Signed in as ${c.email}. ` + (c.state === 'synced' ? 'Progress is saved to the cloud.' : c.state === 'syncing' ? 'Saving...' : c.message || 'Not saved to the cloud right now.');
+    } else if (c.checking) { cls = 'busy'; label = '...'; tip = 'Checking sign-in'; }
+    else { cls = 'out'; label = 'Sign in'; tip = 'Not signed in: progress is only on this device. Grown-ups can sign in with Google to keep it safe.'; }
+    el.className = 'acct ' + cls; el.title = tip; el.setAttribute('aria-label', tip);
+    el.replaceChildren(h('span', { class: 'acct-dot', 'aria-hidden': 'true' }), h('span', { class: 'acct-name' }, (c.signedIn ? '👤 ' : '🔒 ') + label));
+  }
+  if (window.Cloud) { Cloud.onChange(drawAcct); drawAcct(); }
+  /* The child's name is saved as it is typed (and when the box is left), so it is never lost by forgetting a Save button. */
+  function bindName(input, note) {
+    let t = null;
+    const commit = () => { clearTimeout(t); const v = input.value.trim().slice(0, 30); if (v === (S.name || '')) return; S.name = v; S.setAt = Date.now(); save(); if (note) note.textContent = v ? 'Saved ✓' : 'Name cleared'; };
+    input.addEventListener('input', () => { if (note) note.textContent = 'Saving...'; clearTimeout(t); t = setTimeout(commit, 500); });
+    input.addEventListener('change', commit); input.addEventListener('blur', commit);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { commit(); input.blur(); } });
+  }
   function viewHome() {
     setNav('home');
     const frag = h('div'), plan = todayPlan();
@@ -296,6 +318,7 @@
       h('div', { class: 'bubble' }, h('h1', {}, `${greeting()}, ${S.name || 'brave knight'}!`),
         h('p', {}, 'Pick a quest. Let’s play!'), h('details', { class: 'home-fact' }, h('summary', {}, 'Tell me a fun fact!'), h('p', { class: 'fact' }, h('b', {}, 'Did you know? '), fact), h('button', { class: 'linkbtn', onclick: another }, 'Tell me another!'))), h('div', { class: 'buddy', html: MONSTER })));
     if (news) frag.append(news);
+    if (!S.name) { const hi = h('input', { type: 'text', 'aria-label': 'Your name', placeholder: 'Type your name', maxlength: 30, style: 'font:inherit;padding:8px 12px;border-radius:10px;border:2px solid var(--line)' }), ok = h('span', { class: 'muted small', role: 'status' }); bindName(hi, ok); frag.append(h('section', { class: 'card' }, h('h3', {}, 'What is your name, brave knight?'), h('div', { class: 'ans' }, hi, h('button', { class: 'btn', onclick: () => { hi.blur(); if (S.name) route(); } }, 'That is me!'), ok))); }
     const refreshKnight = () => { const o = frag.querySelector('.kn-wrap'); if (o) o.innerHTML = knightHtml(); };
     const gc = goalCard(), wardEl = h('div', { class: 'ward-wrap', style: 'display:none' });
     const drawWard = () => wardEl.replaceChildren(wardrobe(() => { refreshKnight(); drawWard(); }));
@@ -580,10 +603,11 @@
     setNav('parent');
     const frag = h('div', {}, h('h1', {}, '🏰 The Keep (for grown-ups)'), h('p', {}, h('button', { class: 'btn alt small', onclick: () => { GATE.lock(); go('#/'); } }, '🔒 Lock grown-ups area now'), h('span', { class: 'muted small' }, '  It also locks itself after 10 minutes.')));
     const nm = h('input', { type: 'text', value: S.name, 'aria-label': 'Child name', placeholder: 'Child\'s name', style: 'font:inherit;padding:8px 12px;border-radius:10px;border:2px solid var(--line)' });
+    const nmNote = h('span', { class: 'muted small', role: 'status' }, 'Saved as you type'); bindName(nm, nmNote);
     const pl = h('select', { 'aria-label': 'Daily plan', style: 'font:inherit;padding:8px 12px;border-radius:10px;border:2px solid var(--line);max-width:100%' },
       [['rotate', 'Maths every day + English (Mon, Wed, Fri) or Science (Tue, Thu)'], ['all', 'All three subjects every day'], ['math', 'Maths every day, others optional']].map(([v, t]) => h('option', Object.assign({ value: v }, S.plan === v ? { selected: 'selected' } : {}), t)));
     const gl = h('select', { 'aria-label': 'Weekly goal', style: 'font:inherit;padding:8px 12px;border-radius:10px;border:2px solid var(--line)' }, [1, 2, 3, 4, 5].map(n => h('option', Object.assign({ value: n }, S.goal === n ? { selected: 'selected' } : {}), `${n} evening${n > 1 ? 's' : ''} a week`)));
-    frag.append(h('section', { class: 'card' }, h('h2', {}, 'Setup'), h('div', { class: 'ans' }, nm, h('button', { class: 'btn', onclick: () => { S.name = nm.value.trim(); S.setAt = Date.now(); save(); alert('Saved'); } }, 'Save name')),
+    frag.append(h('section', { class: 'card' }, h('h2', {}, 'Setup'), h('div', { class: 'ans' }, nm, nmNote),
       h('h3', { style: 'margin-top:24px' }, 'Daily plan'), h('div', { class: 'ans' }, pl, h('button', { class: 'btn', onclick: () => { S.plan = pl.value; S.setAt = Date.now(); save(); alert('Saved'); } }, 'Save plan')),
       h('h3', { style: 'margin-top:24px' }, 'Weekly goal'), h('div', { class: 'ans' }, gl, h('button', { class: 'btn', onclick: () => { S.goal = +gl.value; S.setAt = Date.now(); save(); alert('Saved'); } }, 'Save goal')),
       h('p', { class: 'muted small' }, 'Study evenings per week (any day with a solved question or a finished lesson counts). Every 3 study days the knight earns a new piece of armour.'),

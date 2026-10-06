@@ -8,7 +8,7 @@
   const V = '10.12.5', BASE = `https://www.gstatic.com/firebasejs/${V}/`;
   const FLAG = 'grade1math.cloud';      // "1" once someone has signed in on this browser
   const LINK = 'grade1math.family';     // the family this device belongs to
-  let hooks = null, fb = null, auth = null, db = null, user = null, loading = null, timer = null, busy = false, again = false, famId = null, fam = null;
+  let hooks = null, fb = null, auth = null, db = null, user = null, loading = null, timer = null, busy = false, again = false, famId = null, fam = null, authKnown = false;
   const st = { state: 'off', message: '', at: 0 };
   const listeners = [];
   const say = (state, message) => { st.state = state; st.message = message || ''; if (state === 'synced') st.at = Date.now(); listeners.forEach(f => { try { f(); } catch (e) { /* ignore */ } }); };
@@ -21,7 +21,7 @@
     say('loading', 'Getting ready...');
     loading = loadScript(BASE + 'firebase-app-compat.js').then(() => loadScript(BASE + 'firebase-auth-compat.js')).then(() => loadScript(BASE + 'firebase-firestore-compat.js')).then(() => {
       fb = window.firebase; fb.initializeApp(window.FIREBASE_CONFIG); auth = fb.auth(); db = fb.firestore();
-      auth.onAuthStateChanged(u => { user = u; if (u) { store(FLAG, '1'); syncNow(); } else { famId = null; fam = null; say('out'); } });
+      auth.onAuthStateChanged(u => { user = u; authKnown = true; if (u) { store(FLAG, '1'); syncNow(); } else { famId = null; fam = null; say('out'); } });
       say(user ? 'synced' : 'ready');
     }).catch(e => { loading = null; console.warn('Cloud: could not start', e); say('error', navigator.onLine ? 'Could not reach Google. Try again in a moment.' : 'You are offline. Signing in needs internet.'); throw e; });
     return loading;
@@ -133,7 +133,7 @@
     attach(h) { hooks = h; if (store(FLAG)) load().catch(() => {}); },
     preload() { return load().catch(() => {}); },
     authenticate, signOut, syncNow, pushSoon, invite, revoke, removeParent,
-    status: () => Object.assign({ email: user ? user.email : '', signedIn: !!user, uid: user ? user.uid : '', family: fam ? { members: Family.list(fam, user && user.uid), pending: fam.pending || [] } : null }, st),
+    status: () => Object.assign({ email: user ? user.email : '', name: user ? (user.displayName || '') : '', checking: !!store(FLAG) && !authKnown && !user, signedIn: !!user, uid: user ? user.uid : '', family: fam ? { members: Family.list(fam, user && user.uid), pending: fam.pending || [] } : null }, st),
     onChange(f) { listeners.push(f); }, offChange(f) { const i = listeners.indexOf(f); if (i >= 0) listeners.splice(i, 1); }
   };
   // Automatic saving: 4 seconds after any change (pushSoon), every 2 minutes while the app is open (this also picks up the other
